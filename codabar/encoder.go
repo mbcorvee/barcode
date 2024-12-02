@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/boombuler/barcode"
-	"github.com/boombuler/barcode/utils"
+	"github.com/mbcorvee/barcode"
+	"github.com/mbcorvee/barcode/utils"
 )
 
 var encodingTable = map[rune][]bool{
