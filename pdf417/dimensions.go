@@ -5,7 +5,7 @@ import "math"
 const (
 	minCols         = 2
 	maxCols         = 30
-	maxRows         = 30
+	maxRows         = 90
 	minRows         = 2
 	moduleHeight    = 2
 	preferred_ratio = 3.0
