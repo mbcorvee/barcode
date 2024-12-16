@@ -12,10 +12,15 @@ const (
 	padding_codeword = 900
 )
 
+type MacroHeader struct {
+	SymbolIndex  int
+	TotalSymbols int
+}
+
 // Encodes the given data and color scheme as PDF417 barcode.
 // securityLevel should be between 0 and 8. The higher the number, the more
 // additional error-correction codes are added.
-func EncodeWithColor(data string, securityLevel byte, color barcode.ColorScheme) (barcode.Barcode, error) {
+func EncodeWithColor(data string, securityLevel byte, color barcode.ColorScheme, macroHeader *MacroHeader) (barcode.Barcode, error) {
 	if securityLevel >= 9 {
 		return nil, fmt.Errorf("Invalid security level %d", securityLevel)
 	}
@@ -27,10 +32,32 @@ func EncodeWithColor(data string, securityLevel byte, color barcode.ColorScheme)
 		return nil, err
 	}
 
-	columns, rows := calcDimensions(len(dataWords), sl.ErrorCorrectionWordCount())
-	if columns < minCols || columns > maxCols || rows < minRows || rows > maxRows {
-		return nil, fmt.Errorf("Unable to fit data in barcode")
+	// If we have macro header information, insert the macro PDF control block
+	if macroHeader != nil {
+		// Start of Macro PDF header
+		dataWords = append(dataWords, 928)
+
+		// Define segment index (fixed length, two codewords)
+		dataWords = append(dataWords, 111, 100+macroHeader.SymbolIndex-1)
+
+		// Define file id (variable length)
+		dataWords = append(dataWords, 1)
+		// Terminate file id
+		dataWords = append(dataWords, 923)
+
+		// Start optional segment count field
+		dataWords = append(dataWords, 49)
+		// Define segment count (fixed length, two codewords)
+		dataWords = append(dataWords, 111, 100+macroHeader.TotalSymbols)
+
+		// End of Macro PDF header (TO BE CONFIRMED)
+		dataWords = append(dataWords, 922)
 	}
+
+	columns, rows := calcDimensions(len(dataWords), sl.ErrorCorrectionWordCount())
+	/*if columns < minCols || columns > maxCols || rows < minRows || rows > maxRows {
+		return nil, fmt.Errorf("Unable to fit data in barcode")
+	}*/
 
 	barcode := new(pdfBarcode)
 	barcode.data = data
@@ -39,6 +66,11 @@ func EncodeWithColor(data string, securityLevel byte, color barcode.ColorScheme)
 	codeWords, err := encodeData(dataWords, columns, sl)
 	if err != nil {
 		return nil, err
+	}
+
+	length := len(codeWords)
+	if length > 928 {
+		return nil, fmt.Errorf("Unable to fit data in barcode, length: %v", length)
 	}
 
 	grid := [][]int{}
@@ -75,7 +107,11 @@ func EncodeWithColor(data string, securityLevel byte, color barcode.ColorScheme)
 // securityLevel should be between 0 and 8. The higher the number, the more
 // additional error-correction codes are added.
 func Encode(data string, securityLevel byte) (barcode.Barcode, error) {
-	return EncodeWithColor(data, securityLevel, barcode.ColorScheme16)
+	return EncodeWithColor(data, securityLevel, barcode.ColorScheme16, nil)
+}
+
+func EncodeMacro(data string, securityLevel byte, macroHeader MacroHeader) (barcode.Barcode, error) {
+	return EncodeWithColor(data, securityLevel, barcode.ColorScheme16, &macroHeader)
 }
 
 func encodeData(dataWords []int, columns int, sl securitylevel) ([]int, error) {
